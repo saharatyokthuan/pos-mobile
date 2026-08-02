@@ -117,6 +117,7 @@ if (!categoryMapping) {
   categoryMapping = OFFICIAL_CATEGORY_MAPPING.map(m => ({...m}));
 } else {
   // เผื่อมีข้อมูลเก่าอยู่แล้ว: รวมตารางทางการเข้าไป โดยไม่ลบ mapping ที่ผู้ใช้เพิ่มเองซึ่งไม่ใช่รหัสทางการ
+<<<<<<< HEAD
   let mappingChanged = false;
   OFFICIAL_CATEGORY_MAPPING.forEach(off => {
     const existing = categoryMapping.find(m => m.prefix === off.prefix);
@@ -134,6 +135,19 @@ if (!categoryMapping) {
 }
 
 let cart = DB.get('cart', []);
+=======
+  OFFICIAL_CATEGORY_MAPPING.forEach(off => {
+    const existing = categoryMapping.find(m => m.prefix === off.prefix);
+    if (existing) { existing.name = off.name; existing.locked = true; }
+    else categoryMapping.push({...off});
+  });
+  DB.set('categoryMapping', categoryMapping);
+  products.forEach(p => { p.category = getCategoryFromProductId(p.product_id); });
+  DB.set('products', products);
+}
+
+let cart = [];
+>>>>>>> origin/main
 let currentPayType = 'เงินสด';
 let payReceived = '';
 let editingProductId = null;
@@ -142,7 +156,11 @@ let currentDebtId = null;
 let creditSaleMode = false;
 let adjChanges = {};
 let salesChartInst = null, purChartInst = null, categoryChartInst = null, compareChartInst = null;
+<<<<<<< HEAD
 let currentPage = document.body.dataset.page || 'pos';
+=======
+let currentPage = 'pos';
+>>>>>>> origin/main
 let posCurrentCat = '';
 
 // ═══════════════════════════════════════════════
@@ -162,7 +180,10 @@ const save = ()=>{
   DB.set('billCounter',billCounter); DB.set('settings',settings);
   DB.set('categoryMapping', categoryMapping);
   DB.set('hiddenMappingPrefixes', hiddenMappingPrefixes);
+<<<<<<< HEAD
   DB.set('cart', cart);
+=======
+>>>>>>> origin/main
 };
 
 function toast(msg, type='success') {
@@ -226,6 +247,7 @@ function renderMapping() {
       <span class="m-prefix">${esc(m.prefix)}</span>
       <span class="m-arrow">→</span>
       <span class="m-cat">${esc(m.name)}</span>
+<<<<<<< HEAD
       <button class="btn-icon" title="${isHidden?'แสดงรายการนี้':'ซ่อนรายการนี้'}" data-action="toggle-hide" data-prefix="${esc(m.prefix)}">${isHidden?'🙈':'👁️'}</button>
       ${m.locked ? '<span title="หมวดหมู่ทางการ ถาวร ลบไม่ได้" style="opacity:.6">🔒</span>' : `<button class="btn-icon" data-action="delete-mapping" data-index="${i}">✕</button>`}
     </div>`;
@@ -240,6 +262,13 @@ if (!window.__mappingListDelegated) {
     else if (btn.dataset.action === 'delete-mapping') deleteMapping(Number(btn.dataset.index));
   });
 }
+=======
+      <button class="btn-icon" title="${isHidden?'แสดงรายการนี้':'ซ่อนรายการนี้'}" onclick="toggleMappingHidden('${m.prefix}')">${isHidden?'🙈':'👁️'}</button>
+      ${m.locked ? '<span title="หมวดหมู่ทางการ ถาวร ลบไม่ได้" style="opacity:.6">🔒</span>' : `<button class="btn-icon" onclick="deleteMapping(${i})">✕</button>`}
+    </div>`;
+  }).join('');
+}
+>>>>>>> origin/main
 function toggleMappingHidden(prefix) {
   const i = hiddenMappingPrefixes.indexOf(prefix);
   if (i === -1) hiddenMappingPrefixes.push(prefix); else hiddenMappingPrefixes.splice(i,1);
@@ -317,6 +346,7 @@ function autoFillCategory() {
 }
 
 // ═══════════════════════════════════════════════
+<<<<<<< HEAD
 // NAVIGATION (multi-page: each "page" is now its own .html file)
 // ═══════════════════════════════════════════════
 
@@ -345,12 +375,32 @@ function setActiveNav(name) {
 
   const fab = document.getElementById('cart-fab');
   if (fab) fab.style.display = name === 'pos' ? 'flex' : 'none';
+=======
+// NAVIGATION
+// ═══════════════════════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const navEl = document.getElementById('nav-'+name);
+  if (navEl) navEl.classList.add('active');
+  currentPage = name;
+
+  const fab = document.getElementById('cart-fab');
+  const topAction = document.getElementById('topbar-action');
+  const billBadge = document.getElementById('pos-bill-no');
+
+  fab.style.display = name === 'pos' ? 'flex' : 'none';
+  topAction.style.display = 'none';
+  billBadge.style.display = 'none';
+>>>>>>> origin/main
 
   const titles = {
     pos:'🛒 ขายสินค้า', products:'📦 สินค้า',
     purchase:'🚚 สั่งซื้อ', debt:'💳 ลูกหนี้',
     reports:'📊 รายงาน', more:'☰ เมนู'
   };
+<<<<<<< HEAD
   const titleEl = document.getElementById('topbar-title');
   if (titleEl) titleEl.textContent = titles[name] || '';
 }
@@ -392,6 +442,31 @@ function runPageInit(name) {
       topAction.textContent = '+ เพิ่ม';
       topAction.onclick = ()=>openDebtModal();
     }
+=======
+  document.getElementById('topbar-title').textContent = titles[name] || '';
+
+  if (name === 'pos') {
+    billBadge.style.display = 'inline';
+    billBadge.textContent = 'บิล #B'+String(billCounter).padStart(5,'0');
+    renderPosProducts(); updateCatChips();
+  }
+  if (name === 'products') {
+    topAction.style.display = 'inline-flex';
+    topAction.textContent = '+ เพิ่มสินค้า';
+    topAction.onclick = ()=>openProductModal();
+    updateCategorySelects(); renderProducts();
+  }
+  if (name === 'purchase') {
+    topAction.style.display = 'inline-flex';
+    topAction.textContent = '+ บันทึกซื้อ';
+    topAction.onclick = ()=>openPurchaseModal();
+    renderPurchases();
+  }
+  if (name === 'debt') {
+    topAction.style.display = 'inline-flex';
+    topAction.textContent = '+ เพิ่ม';
+    topAction.onclick = ()=>openDebtModal();
+>>>>>>> origin/main
     renderDebts();
   }
   if (name === 'reports') {
@@ -404,6 +479,7 @@ function runPageInit(name) {
   }
 }
 
+<<<<<<< HEAD
 // If we arrived via a #hash link (e.g. products.html#stock-adjust), open
 // the matching modal once the page's own init has finished rendering.
 function handleHashAction() {
@@ -419,12 +495,21 @@ function handleHashAction() {
     openHoldBillsPage();
   }
   history.replaceState(null, '', location.pathname);
+=======
+function showSubPage(name) {
+  if (name === 'stock-adjust') {
+    adjChanges = {};
+    renderAdjList();
+    openModal('modal-stock-adjust');
+  }
+>>>>>>> origin/main
 }
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 // ═══════════════════════════════════════════════
+<<<<<<< HEAD
 // SIDE MENU
 // ═══════════════════════════════════════════════
 function openMenu() {
@@ -451,6 +536,11 @@ function navigateFromMenu(name) {
 // ═══════════════════════════════════════════════
 function loadSettings() {
   document.getElementById('set-store-code').value = settings.storeCode||'';
+=======
+// SETTINGS
+// ═══════════════════════════════════════════════
+function loadSettings() {
+>>>>>>> origin/main
   document.getElementById('set-store-name').value = settings.storeName||'';
   document.getElementById('set-store-addr').value = settings.storeAddr||'';
   document.getElementById('set-store-phone').value = settings.storePhone||'';
@@ -460,7 +550,10 @@ function loadSettings() {
   document.getElementById('set-vat').value = settings.vat||'no';
 }
 function saveSettings() {
+<<<<<<< HEAD
   settings.storeCode = document.getElementById('set-store-code').value;
+=======
+>>>>>>> origin/main
   settings.storeName = document.getElementById('set-store-name').value;
   settings.storeAddr = document.getElementById('set-store-addr').value;
   settings.storePhone = document.getElementById('set-store-phone').value;
@@ -468,6 +561,7 @@ function saveSettings() {
   settings.lowStock = +document.getElementById('set-low-stock').value;
   settings.expiryDays = +document.getElementById('set-expiry-days').value;
   settings.vat = document.getElementById('set-vat').value;
+<<<<<<< HEAD
   save(); updateHeaderSubtitle(); toast('บันทึกแล้ว ✓');
 }
 function updateHeaderSubtitle() {
@@ -478,6 +572,9 @@ function updateHeaderSubtitle() {
 }
 function openSetting() {
   navigateFromMenu('more');
+=======
+  save(); toast('บันทึกแล้ว ✓');
+>>>>>>> origin/main
 }
 function clearAllData() {
   if (!confirm('⚠️ ล้างข้อมูลทั้งหมด?')) return;
@@ -626,8 +723,13 @@ function renderPosProducts() {
     const lowCls=p.stock<=0?'no-stock':p.stock<=settings.lowStock?'low-stock':'';
     return `<div class="product-card ${lowCls}" onclick="clickProduct('${p.id}')">
       <div class="pc-name">${esc(p.name)}</div>
+<<<<<<< HEAD
       <div class="pc-product_id">รหัส: ${esc(p.product_id||'-')}</div>
       <div class="pc-barcode">Barcode: ${esc(p.barcode||'-')}</div>
+=======
+      <div class="pc-product_id">รหัส: ${p.product_id||'-'}</div>
+      <div class="pc-barcode">Barcode: ${p.barcode||'-'}</div>
+>>>>>>> origin/main
       <div class="pc-price">${fmt(p.price)}</div>
       <div class="pc-stock">${p.stock<=0?'❌ หมด':`📦 ${p.stock}`}</div>
     </div>`;
@@ -684,10 +786,15 @@ function addFirstResult() {
   }
 }
 function updateCartFab() {
+<<<<<<< HEAD
   DB.set('cart', cart);
   const total=cart.reduce((s,c)=>s+c.qty,0);
   const badge=document.getElementById('cart-count-badge');
   if(!badge) return;
+=======
+  const total=cart.reduce((s,c)=>s+c.qty,0);
+  const badge=document.getElementById('cart-count-badge');
+>>>>>>> origin/main
   badge.style.display=total?'flex':'none';
   badge.textContent=total;
 }
@@ -895,7 +1002,10 @@ function holdCurrentCart(){
   toast(`พักบิล "${n}" แล้ว`);
 }
 function openHoldBillsPage(){
+<<<<<<< HEAD
   if (currentPage !== 'pos') { location.href = 'pos.html#hold'; return; }
+=======
+>>>>>>> origin/main
   const list=document.getElementById('hold-bills-list');
   list.innerHTML=holdBills.length?holdBills.map((b,i)=>`
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:8px">
@@ -1110,7 +1220,10 @@ function renderDebts(){
 // EXPENSE
 // ═══════════════════════════════════════════════
 function openExpense(){
+<<<<<<< HEAD
   if (currentPage !== 'more') { location.href = 'more.html#expense'; return; }
+=======
+>>>>>>> origin/main
   document.getElementById('exp-name').value='';
   document.getElementById('exp-amount').value='';
   document.getElementById('exp-date').value=today();
@@ -1502,6 +1615,7 @@ function importExcel(event) {
   reader.readAsArrayBuffer(file);
 }
 
+<<<<<<< HEAD
 // ── MASTER UPDATE: อัพเดทชื่อ+หมวดหมู่ จากไฟล์ Excel เท่านั้น ──
 // (ไม่แตะราคา/ทุน/สต๊อก ต่างจาก importExcel ที่อัปเดตทุกฟิลด์)
 function importMasterUpdate(event) {
@@ -1549,6 +1663,8 @@ function importMasterUpdate(event) {
   reader.readAsArrayBuffer(file);
 }
 
+=======
+>>>>>>> origin/main
 // ── FULL DATA BACKUP / RESTORE ───────────────────
 function exportBackupJSON(){
   const backup={products,sales,purchases,debts,expenses,settings,holdBills,billCounter,categoryMapping,exportedAt:new Date().toISOString(),version:1};
@@ -1719,8 +1835,12 @@ async function scanBarcodeToProductForm() {
 // SEED DATA
 // ═══════════════════════════════════════════════
 function seedDemoData(){
+<<<<<<< HEAD
   if(products.length || DB.get('seeded', false)) return;
   DB.set('seeded', true);
+=======
+  if(products.length) return;
+>>>>>>> origin/main
   const seeds=[
     {product_id:'4111505', barcode:'8859733221136', name:'ไอโอร่าบิสกิตรสนมกระเป๋าหูรูดToyStory16ก.', price:25},
     {product_id:'4007475', barcode:'6942712001293', name:'เอมอสกัมมี่สติชรสพีชและบลูเบอร์รี่ 34 ก.(ด.)', price:30},
@@ -1740,14 +1860,23 @@ function seedDemoData(){
 // ═══════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
   seedDemoData();
+<<<<<<< HEAD
   updateHeaderSubtitle();
   setActiveNav(currentPage);
   runPageInit(currentPage);
   handleHashAction();
+=======
+  renderMapping();
+  updateCategorySelects();
+  updateCatChips();
+  renderPosProducts();
+  document.getElementById('pos-bill-no').textContent='บิล #B'+String(billCounter).padStart(5,'0');
+>>>>>>> origin/main
 
   const expWarn=new Date(); expWarn.setDate(expWarn.getDate()+settings.expiryDays);
   const alerts=products.filter(p=>p.stock<=settings.lowStock||(p.expiry&&new Date(p.expiry)<=expWarn));
   const nb=document.getElementById('nav-alert-badge');
+<<<<<<< HEAD
   if(nb){ nb.textContent=alerts.length; nb.style.display=alerts.length?'flex':'none'; }
   if(alerts.length) setTimeout(()=>toast(`⚠️ ${alerts.length} รายการต้องตรวจสอบ`,'warning'),800);
 });
@@ -1760,3 +1889,8 @@ function toggleMappingCard(){
   body.style.display=isOpen?'none':'block';
   if(chevron){ chevron.style.display='inline-block'; chevron.style.transform=isOpen?'':'rotate(180deg)'; }
 }
+=======
+  nb.textContent=alerts.length; nb.style.display=alerts.length?'flex':'none';
+  if(alerts.length) setTimeout(()=>toast(`⚠️ ${alerts.length} รายการต้องตรวจสอบ`,'warning'),800);
+});
+>>>>>>> origin/main
