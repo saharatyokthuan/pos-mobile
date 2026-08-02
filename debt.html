@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>POS-MOBILE — ลูกหนี้</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style-pos.css">
+</head>
+<body data-page="debt">
+<header class="header-app">
+  <div class="header-left">
+    <button class="header-btn" id="hamburger-btn" onclick="openMenu()" aria-label="เปิดเมนู" aria-expanded="false">
+      ☰
+    </button>
+  </div>
+  <div class="header-center" onclick="navigateFromMenu('pos')" role="button" aria-label="กลับหน้าแรก">
+    <h1 class="header-title">POS-MOBILE</h1>
+    <p class="header-subtitle" id="header-subtitle"></p>
+  </div>
+  <div class="header-right">
+   <button class="header-btn" id="setting-btn" onclick="openSetting()" aria-label="เปิดการตั้งค่า"aria-expanded="false">
+    ⚙️
+   </button>
+  </div>
+</header>
+
+<!-- ── SIDE MENU ─────────────────────────────── -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeMenu()"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <span class="sidebar-title">☰ เมนู</span>
+    <button class="btn-icon" onclick="closeMenu()" aria-label="ปิดเมนู">✕</button>
+  </div>
+  <nav class="sidebar-nav">
+    <button class="sidebar-link" onclick="navigateFromMenu('pos')">🛒 ขายสินค้า</button>
+    <button class="sidebar-link" onclick="navigateFromMenu('products')">📦 สินค้า</button>
+    <button class="sidebar-link" onclick="navigateFromMenu('purchase')">🚚 สั่งซื้อ</button>
+    <button class="sidebar-link" onclick="navigateFromMenu('debt')">💳 ลูกหนี้</button>
+    <button class="sidebar-link" onclick="navigateFromMenu('reports')">📊 รายงาน</button>
+    <button class="sidebar-link" onclick="navigateFromMenu('more')">⚙️ เพิ่มเติม / ตั้งค่า</button>
+  </nav>
+  <div class="sidebar-divider"></div>
+  <nav class="sidebar-nav">
+    <button class="sidebar-link" onclick="closeMenu();openExpense()">💸 บันทึกรายจ่าย</button>
+    <button class="sidebar-link" onclick="closeMenu();showSubPage('stock-adjust')">⚖️ ปรับสต๊อก</button>
+    <button class="sidebar-link" onclick="closeMenu();openHoldBillsPage()">🅿️ บิลพัก</button>
+    <button class="sidebar-link" onclick="closeMenu();exportBackupJSON()">💾 สำรองข้อมูลทั้งหมด</button>
+  </nav>
+</aside>
+
+<!-- ── TOP BAR ─────────────────────────────── -->
+<div id="topbar">
+  <span id="topbar-title"> 💳 ลูกหนี้</span>
+  <span class="badge badge-teal" id="pos-bill-no" style="display:none">—</span>
+  <button class="btn btn-secondary btn-sm" id="topbar-action" style="display:none"></button>
+</div>
+
+<!-- ── PAGE CONTAINER ──────────────────────── -->
+<div id="page-container">
+
+  <div class="page active" id="page-debt">
+    <div class="page-body">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">ยอดค้างชำระ</div><div class="stat-value text-red" id="debt-outstanding">฿0</div></div>
+        <div class="stat-card"><div class="stat-label">บิลค้าง</div><div class="stat-value text-amber" id="debt-bill-count">0</div><div class="stat-sub">รายการ</div></div>
+      </div>
+      <div id="debt-list"></div>
+    </div>
+  </div>
+
+</div><!-- end page-container -->
+
+<!-- ── CART FAB ──────────────────────────────── -->
+<button id="cart-fab" onclick="openCartSheet()">
+  🛒
+  <span id="cart-count-badge">0</span>
+</button>
+
+<!-- ── BOTTOM NAV ─────────────────────────────── -->
+<nav id="bottom-nav">
+  <button class="nav-item" onclick="showPage('pos')" id="nav-pos">
+    <span class="nav-icon">🛒</span>
+    <span>ขาย</span>
+  </button>
+  <button class="nav-item" onclick="showPage('products')" id="nav-products">
+    <span class="nav-icon">📦</span>
+    <span>สินค้า</span>
+    <span class="nav-badge" id="nav-alert-badge"></span>
+  </button>
+  <button class="nav-item" onclick="showPage('debt')" id="nav-debt">
+    <span class="nav-icon">💳</span>
+    <span>ลูกหนี้</span>
+  </button>
+  <button class="nav-item" onclick="showPage('reports')" id="nav-reports">
+    <span class="nav-icon">📊</span>
+    <span>รายงาน</span>
+  </button>
+  <button class="nav-item" onclick="showPage('more')" id="nav-more">
+    <span class="nav-icon">☰</span>
+    <span>เพิ่มเติม</span>
+  </button>
+</nav>
+
+<!-- ── TOAST ─────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<div class="modal-overlay" id="modal-debt" onclick="if(event.target===this)closeModal('modal-debt')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="debt-modal-title">➕ เพิ่มลูกหนี้</div>
+    <div class="form-group"><label>ชื่อลูกค้า *</label><input type="text" id="dm-name"></div>
+    <div class="form-group"><label>เบอร์โทร</label><input type="text" id="dm-phone" inputmode="tel"></div>
+    <div class="form-group"><label>ยอดเงิน</label><input type="number" id="dm-amount" inputmode="decimal" step="0.01"></div>
+    <div class="form-group"><label>วันที่</label><input type="date" id="dm-date"></div>
+    <div class="form-group"><label>หมายเหตุ</label><input type="text" id="dm-note"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-debt')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveDebt()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-pay-debt" onclick="if(event.target===this)closeModal('modal-pay-debt')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🧾 รับชำระหนี้</div>
+    <div class="form-group"><label>ชื่อลูกค้า</label><input type="text" id="pd-name" readonly></div>
+    <div class="form-group"><label>ยอดค้าง</label><input type="number" id="pd-outstanding" readonly></div>
+    <div class="form-group"><label>ยอดที่รับ</label><input type="number" id="pd-pay-amt" inputmode="decimal" step="0.01"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-pay-debt')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="confirmPayDebt()">✅ รับชำระ</button>
+    </div>
+  </div>
+</div>
+<script src="script-pos.js"></script>
+</body>
+</html>
