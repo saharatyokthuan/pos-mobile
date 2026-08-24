@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Pattaya&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Charm:wght@400;700&family=Kanit:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Noto+Sans+Thai:wdth,wght@76.6,100..900&family=Sarabun:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800&family=Thasadith:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Pattaya&display=swap');
-=======
+
 
 :root {
   --bg: #0F1623;
@@ -27,7 +27,6 @@
   --text-dim: #94A3B8;
 
   --font: 'Pattaya';
-=======
   --mono: 'JetBrains Mono', monospace;
   --sans: 'Inter', sans-serif;
 
@@ -49,7 +48,6 @@ header{
 
 body {
   font-family: var(--font);
-=======
 body {
   font-family: var(--sans);
 
@@ -123,10 +121,9 @@ body {
   text-align: left; cursor: pointer;
 }
 .sidebar-link:active { background: var(--surface2); }
-.sidebar-divider { height: 1px; background: var(--border); margin: 8px 16px; }
-
-=======
-
+.sidebar-divider { height: 1px; background: var(--border); margin: 8px 16px; 
+  
+}
 /* ── TOP BAR ─────────────────────────────── */
 #topbar {
   height: var(--top-h);
@@ -135,7 +132,7 @@ body {
 
   align-items: center;
   display: flex;
-=======
+
   display: flex;
   align-items: center;
 
@@ -161,7 +158,7 @@ body {
   border-radius: 20px; font-weight: 600;
 
   font-family: var(--font);
-=======
+
   font-family: var(--mono);
 
 }
@@ -245,7 +242,7 @@ body {
   font-size: 13px; font-weight: 600; cursor: pointer;
 
   border: none; transition: all 0.15s; font-family: var(--font);
-=======
+
   border: none; transition: all 0.15s; font-family: var(--sans);
 
   min-height: 44px;
@@ -276,7 +273,7 @@ input, select, textarea {
   border-radius: var(--r-sm); color: var(--text);
 
   font-family: var(--font); font-size: 14px;
-=======
+
   font-family: var(--sans); font-size: 14px;
 
   min-height: 44px;
@@ -287,7 +284,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 input[type=number] { font-family: var(--font); }
-=======
+
 input[type=number] { font-family: var(--mono); }
 
 select option { background: var(--surface2); }
@@ -310,7 +307,7 @@ textarea { min-height: 80px; resize: vertical; }
 .stat-label { font-size: 10px; color: var(--text-muted); font-weight: 500; margin-bottom: 4px; }
 
 .stat-value { font-family: var(--font); font-size: 18px; font-weight: 700; }
-=======
+
 .stat-value { font-family: var(--mono); font-size: 18px; font-weight: 700; }
 
 .stat-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
@@ -333,7 +330,7 @@ tr:active td { background: var(--surface2); }
 
 .td-mono { font-family: var(--font); font-size: 12px; }
 .td-num { font-family: var(--font); text-align: right; }
-=======
+
 .td-mono { font-family: var(--mono); font-size: 12px; }
 .td-num { font-family: var(--mono); text-align: right; }
 
@@ -486,7 +483,7 @@ tr:active td { background: var(--surface2); }
 .pc-stock { font-size: 10px; color: var(--text-muted); }
 .pc-product_id { font-family: var(--font); font-size: 10px; color: var(--text-muted); }
 .pc-barcode { font-family: var(--font); font-size: 10px; color: var(--text-muted); }
-=======
+
 .pc-price { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--teal); }
 .pc-stock { font-size: 10px; color: var(--text-muted); }
 .pc-product_id { font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
@@ -567,7 +564,7 @@ tr:active td { background: var(--surface2); }
 
 .qty-val { font-family: var(--font); font-size: 14px; font-weight: 700; min-width: 28px; text-align: center; }
 .ci-subtotal { font-family: var(--font); font-size: 13px; font-weight: 700; color: var(--teal); min-width: 72px; text-align: right; }
-=======
+
 .qty-val { font-family: var(--mono); font-size: 14px; font-weight: 700; min-width: 28px; text-align: center; }
 .ci-subtotal { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--teal); min-width: 72px; text-align: right; }
 
@@ -586,7 +583,7 @@ tr:active td { background: var(--surface2); }
 }
 
 .sum-row .val { font-family: var(--font); }
-=======
+
 .sum-row .val { font-family: var(--mono); }
 
 .sum-discount-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
@@ -600,7 +597,7 @@ tr:active td { background: var(--surface2); }
 }
 
 .sum-total-val { font-family: var(--font); }
-=======
+
 .sum-total-val { font-family: var(--mono); }
 
 .cart-btn-row { display: flex; gap: 8px; }
@@ -627,7 +624,7 @@ tr:active td { background: var(--surface2); }
   border-radius: var(--r-sm); padding: 14px;
 
   font-family: var(--font); font-size: 28px; font-weight: 700;
-=======
+
   font-family: var(--mono); font-size: 28px; font-weight: 700;
 
   text-align: right; color: var(--teal); margin-bottom: 6px;
@@ -638,7 +635,7 @@ tr:active td { background: var(--surface2); }
   margin-bottom: 12px;
 
   font-family: var(--font);
-=======
+
   font-family: var(--mono);
 
 }
@@ -652,7 +649,7 @@ tr:active td { background: var(--surface2); }
   color: var(--text); font-size: 18px; font-weight: 700;
 
   cursor: pointer; font-family: var(--font);
-=======
+
   cursor: pointer; font-family: var(--mono);
 
   transition: all 0.1s; min-height: 56px;
@@ -670,7 +667,7 @@ tr:active td { background: var(--surface2); }
   color: var(--text); font-size: 13px; font-weight: 700;
 
   cursor: pointer; font-family: var(--font); transition: all 0.1s;
-=======
+
   cursor: pointer; font-family: var(--mono); transition: all 0.1s;
 
 }
@@ -682,7 +679,7 @@ tr:active td { background: var(--surface2); }
 .receipt {
 
   font-family: var(--font); font-size: 12px;
-=======
+
   font-family: var(--mono); font-size: 12px;
 
   background: #fff; color: #000;
@@ -714,7 +711,7 @@ tr:active td { background: var(--surface2); }
 .pli-price { font-family: var(--font); font-size: 14px; font-weight: 700; color: var(--teal); margin-top: 4px; }
 .pli-stock {
   font-family: var(--font); font-size: 12px; font-weight: 600;
-=======
+
 .pli-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-family: var(--mono); }
 .pli-meta .pli-barcode { color: var(--teal); }
 .pli-price { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--teal); margin-top: 4px; }
@@ -741,7 +738,7 @@ tr:active td { background: var(--surface2); }
 .debt-name { font-size: 15px; font-weight: 700; }
 
 .debt-amount { font-family: var(--font); font-size: 16px; font-weight: 700; color: var(--amber); }
-=======
+
 .debt-amount { font-family: var(--mono); font-size: 16px; font-weight: 700; color: var(--amber); }
 
 .debt-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
@@ -765,7 +762,7 @@ tr:active td { background: var(--surface2); }
   border-bottom: 2px solid transparent; margin-bottom: -1px;
 
   transition: all 0.15s; font-family: var(--font); white-space: nowrap;
-=======
+
   transition: all 0.15s; font-family: var(--sans); white-space: nowrap;
 
   min-height: 44px;
@@ -792,7 +789,7 @@ tr:active td { background: var(--surface2); }
 .adj-cur {
 
   font-family: var(--font); font-size: 12px;
-=======
+
   font-family: var(--mono); font-size: 12px;
 
   color: var(--text-muted); width: 50px; text-align: right;
@@ -814,7 +811,7 @@ tr:active td { background: var(--surface2); }
 .pur-list-item .pur-main { font-size: 14px; font-weight: 600; }
 
 .pur-list-item .pur-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-family: var(--font); }
-=======
+
 .pur-list-item .pur-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-family: var(--mono); }
 
 
@@ -842,7 +839,7 @@ tr:active td { background: var(--surface2); }
 .mapping-row .m-prefix {
 
   font-family: var(--font);
-=======
+
   font-family: var(--mono);
 
   font-weight: 700;
@@ -896,3 +893,5 @@ tr:active td { background: var(--surface2); }
   flex-shrink: 0;
   min-height: 40px;
 }
+
+}}
