@@ -116,6 +116,7 @@ let categoryMapping = DB.get('categoryMapping', null);
 if (!categoryMapping) {
   categoryMapping = OFFICIAL_CATEGORY_MAPPING.map(m => ({...m}));
 } else {
+  // เผื่อมีข้อมูลเก่าอยู่แล้ว: รวมตารางทางการเข้าไป โดยไม่ลบ mapping ที่ผู้ใช้เพิ่มเองซึ่งไม่ใช่รหัสทางการ
   let mappingChanged = false;
   OFFICIAL_CATEGORY_MAPPING.forEach(off => {
     const existing = categoryMapping.find(m => m.prefix === off.prefix);
@@ -126,6 +127,7 @@ if (!categoryMapping) {
   });
   if (mappingChanged) {
     DB.set('categoryMapping', categoryMapping);
+    // เฉพาะสินค้าที่ยังไม่เคยตั้งหมวดหมู่เอง ไม่แตะสินค้าที่ผู้ใช้แก้ไขหมวดหมู่เองแล้ว
     products.forEach(p => { if (!p.category) p.category = getCategoryFromProductId(p.product_id); });
     DB.set('products', products);
   }
@@ -140,9 +142,9 @@ let currentDebtId = null;
 let creditSaleMode = false;
 let adjChanges = {};
 let salesChartInst = null, purChartInst = null, categoryChartInst = null, compareChartInst = null;
-
-let currentPage = document.body.dataset.page || 'pos';
+let currentPage = 'pos';
 let posCurrentCat = '';
+
 // ═══════════════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════════════
@@ -170,7 +172,7 @@ function toast(msg, type='success') {
   setTimeout(()=>t.remove(), 2800);
 }
 
-// ── ESCAPE HTML ──
+// ── ESCAPE HTML (ป้องกัน XSS จากชื่อสินค้า/ลูกค้า ที่ผู้ใช้กรอกเอง) ──
 function esc(s) {
   return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -189,12 +191,14 @@ function getAllCategories() {
   products.forEach(p => {
     if (p.category) catSet.add(p.category);
   });
+  // Also include mapped categories that may not have products yet
   categoryMapping.forEach(m => catSet.add(m.name));
   return Array.from(catSet).sort();
 }
 
 function updateCategorySelects() {
   const cats = getAllCategories();
+  // Filter dropdown
   const filterEl = document.getElementById('prod-cat-filter');
   if (filterEl) {
     const current = filterEl.value;
@@ -204,11 +208,10 @@ function updateCategorySelects() {
   }
 }
 
-// ── CATEGORY VISIBILITY ──
+// ── CATEGORY VISIBILITY (ซ่อน/แสดงรายการในลิสต์แม็พหมวดหมู่ หน้าเพิ่มเติม) ──
 let showHiddenMappings = false;
 function renderMapping() {
   const list = document.getElementById('mapping-list');
-  if (!list) return;
   const hiddenCount = categoryMapping.filter(m => hiddenMappingPrefixes.includes(m.prefix)).length;
   const visibleMapping = showHiddenMappings ? categoryMapping : categoryMapping.filter(m => !hiddenMappingPrefixes.includes(m.prefix));
   const toggleBar = hiddenCount ? `
@@ -228,7 +231,6 @@ function renderMapping() {
     </div>`;
   }).join('');
 }
-
 if (!window.__mappingListDelegated) {
   window.__mappingListDelegated = true;
   document.addEventListener('click', (e) => {
@@ -238,7 +240,6 @@ if (!window.__mappingListDelegated) {
     else if (btn.dataset.action === 'delete-mapping') deleteMapping(Number(btn.dataset.index));
   });
 }
-
 function toggleMappingHidden(prefix) {
   const i = hiddenMappingPrefixes.indexOf(prefix);
   if (i === -1) hiddenMappingPrefixes.push(prefix); else hiddenMappingPrefixes.splice(i,1);
@@ -270,6 +271,7 @@ function addMapping() {
   const cat = document.getElementById('mapping-cat').value.trim();
   if (!prefix) { toast('กรุณากรอกรหัส prefix', 'error'); return; }
   if (!cat) { toast('กรุณากรอกชื่อหมวดหมู่', 'error'); return; }
+  // Check duplicate
   if (categoryMapping.some(m => m.prefix === prefix)) {
     toast('มีรหัสนี้อยู่แล้ว', 'warning');
     return;
@@ -303,6 +305,7 @@ function deleteMapping(index) {
   toast('ลบแล้ว');
 }
 
+// ── AUTO-FILL CATEGORY IN PRODUCT MODAL ────────
 function autoFillCategory() {
   const pid = document.getElementById('pm-product_id').value.trim();
   if (pid) {
@@ -312,17 +315,93 @@ function autoFillCategory() {
     document.getElementById('pm-category').value = '';
   }
 }
+
 // ═══════════════════════════════════════════════
-// NAVIGATION
+// MASTER PRODUCT LIST (from export_product.xlsx)
+// รายการอ้างอิงสำหรับค้นหา/auto-fill เท่านั้น — ไม่ใช่สต๊อกร้าน
 // ═══════════════════════════════════════════════
-function showPage(name) {
-  if (name === currentPage) return;
-  location.href = name + '.html';
+let MASTER_BY_ID = null, MASTER_BY_BARCODE = null;
+function ensureMasterIndex() {
+  if (MASTER_BY_ID || typeof MASTER_PRODUCTS === 'undefined') return;
+  MASTER_BY_ID = new Map();
+  MASTER_BY_BARCODE = new Map();
+  MASTER_PRODUCTS.forEach(m => { MASTER_BY_ID.set(m.i, m); MASTER_BY_BARCODE.set(m.b, m); });
 }
 
+// เรียกตอนพิมพ์รหัสสินค้า/บาร์โค้ดในฟอร์มเพิ่ม-แก้ไขสินค้า
+// เติมชื่อ+หมวดหมู่ให้อัตโนมัติถ้าเจอในรายการกลาง (เติมเฉพาะช่องที่ยังว่าง)
+function autoFillProductInfo(source) {
+  autoFillCategory(); // คงพฤติกรรมเดิม: เติมหมวดตาม prefix รหัสสินค้า
+  ensureMasterIndex();
+  if (!MASTER_BY_ID) return;
+  const pid = document.getElementById('pm-product_id').value.trim();
+  const barcode = document.getElementById('pm-barcode').value.trim();
+  const match = (source === 'barcode' ? MASTER_BY_BARCODE.get(barcode) : MASTER_BY_ID.get(pid))
+             || MASTER_BY_ID.get(pid) || MASTER_BY_BARCODE.get(barcode);
+  if (!match) return;
+  const nameEl = document.getElementById('pm-name');
+  if (!nameEl.value.trim()) nameEl.value = match.n;
+  if (!document.getElementById('pm-barcode').value.trim()) document.getElementById('pm-barcode').value = match.b;
+  if (!document.getElementById('pm-product_id').value.trim()) document.getElementById('pm-product_id').value = match.i;
+}
+
+// ── รายการสินค้ากลาง: modal ค้นหา + เลือกเพื่อเพิ่มสินค้า ──
+function openMasterSearch() {
+  ensureMasterIndex();
+  document.getElementById('master-search').value = '';
+  renderMasterSearch();
+  openModal('modal-master-search');
+}
+function renderMasterSearch() {
+  const q = document.getElementById('master-search').value.trim().toLowerCase();
+  const listEl = document.getElementById('master-search-list');
+  if (typeof MASTER_PRODUCTS === 'undefined') { listEl.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px">ไม่พบไฟล์รายการสินค้ากลาง</p>'; return; }
+  if (!q) { listEl.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px">พิมพ์เพื่อค้นหา...</p>'; return; }
+  const existingIds = new Set(products.map(p => p.product_id));
+  const results = MASTER_PRODUCTS.filter(m =>
+    m.n.toLowerCase().includes(q) || m.i.includes(q) || m.b.includes(q)
+  ).slice(0, 50);
+  if (!results.length) { listEl.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px">ไม่พบสินค้า</p>'; return; }
+  listEl.innerHTML = results.map(m => {
+    const added = existingIds.has(m.i);
+    return `<div class="prod-list-item" style="cursor:pointer;${added?'opacity:.5':''}" onclick="${added?'':`selectMasterProduct('${m.i}')`}">
+      <div class="pli-name">${esc(m.n)}${added ? ' <span style="font-size:11px;color:var(--text-muted)">(มีในร้านแล้ว)</span>' : ''}</div>
+      <div class="pli-meta">รหัส: ${esc(m.i)} · Barcode: ${esc(m.b)} · ${esc(m.c)}</div>
+    </div>`;
+  }).join('');
+}
+function selectMasterProduct(productId) {
+  ensureMasterIndex();
+  const m = MASTER_BY_ID.get(productId);
+  if (!m) return;
+  closeModal('modal-master-search');
+  openProductModal(null);
+  document.getElementById('pm-product_id').value = m.i;
+  document.getElementById('pm-barcode').value = m.b;
+  document.getElementById('pm-name').value = m.n;
+  autoFillCategory();
+  toast('เติมข้อมูลจากรายการกลางแล้ว กรอกราคาขายเพื่อบันทึก', 'success');
+}
+
+// ═══════════════════════════════════════════════
+// NAVIGATION (single-page app: all "pages" live in one index.html,
+// toggled via .page/.page.active — see style-pos.css)
+// ═══════════════════════════════════════════════
+function showPage(name) {
+  closeMenu();
+  if (name === currentPage) return;
+  const current = document.getElementById('page-' + currentPage);
+  if (current) current.classList.remove('active');
+  const next = document.getElementById('page-' + name);
+  if (next) next.classList.add('active');
+  currentPage = name;
+  setActiveNav(name);
+  runPageInit(name);
+}
+
+// All modals now live on every page, so this can open directly.
 function showSubPage(name) {
   if (name === 'stock-adjust') {
-    if (currentPage !== 'products') { location.href = 'products.html#stock-adjust'; return; }
     adjChanges = {};
     renderAdjList();
     openModal('modal-stock-adjust');
@@ -333,6 +412,66 @@ function setActiveNav(name) {
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
   const navEl = document.getElementById('nav-'+name);
   if (navEl) navEl.classList.add('active');
+
+  const fab = document.getElementById('cart-fab');
+  if (fab) fab.style.display = name === 'pos' ? 'flex' : 'none';
+
+  const titles = {
+    pos:'🛒 ขายสินค้า', products:'📦 สินค้า',
+    purchase:'🚚 สั่งซื้อ', debt:'💳 ลูกหนี้',
+    reports:'📊 รายงาน', more:'☰ เมนู'
+  };
+  const titleEl = document.getElementById('topbar-title');
+  if (titleEl) titleEl.textContent = titles[name] || '';
+}
+
+// Runs the same per-page setup that showPage() used to run inline, now
+// triggered once on DOMContentLoaded for whichever page was loaded.
+function runPageInit(name) {
+  const topAction = document.getElementById('topbar-action');
+  const billBadge = document.getElementById('pos-bill-no');
+  if (topAction) topAction.style.display = 'none';
+  if (billBadge) billBadge.style.display = 'none';
+
+  if (name === 'pos') {
+    if (billBadge) {
+      billBadge.style.display = 'inline';
+      billBadge.textContent = 'บิล #B'+String(billCounter).padStart(5,'0');
+    }
+    renderPosProducts(); updateCatChips(); updateCartFab();
+  }
+  if (name === 'products') {
+    if (topAction) {
+      topAction.style.display = 'inline-flex';
+      topAction.textContent = '+ เพิ่มสินค้า';
+      topAction.onclick = ()=>openProductModal();
+    }
+    updateCategorySelects(); renderProducts();
+  }
+  if (name === 'purchase') {
+    if (topAction) {
+      topAction.style.display = 'inline-flex';
+      topAction.textContent = '+ บันทึกซื้อ';
+      topAction.onclick = ()=>openPurchaseModal();
+    }
+    renderPurchases();
+  }
+  if (name === 'debt') {
+    if (topAction) {
+      topAction.style.display = 'inline-flex';
+      topAction.textContent = '+ เพิ่ม';
+      topAction.onclick = ()=>openDebtModal();
+    }
+    renderDebts();
+  }
+  if (name === 'reports') {
+    setDateRange('month','sale');
+    renderSalesReport(); renderStockReport();
+  }
+  if (name === 'more') {
+    loadSettings();
+    renderMapping();
+  }
 }
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -364,6 +503,7 @@ function navigateFromMenu(name) {
 // SETTINGS
 // ═══════════════════════════════════════════════
 function loadSettings() {
+  document.getElementById('set-store-code').value = settings.storeCode||'';
   document.getElementById('set-store-name').value = settings.storeName||'';
   document.getElementById('set-store-addr').value = settings.storeAddr||'';
   document.getElementById('set-store-phone').value = settings.storePhone||'';
@@ -372,8 +512,8 @@ function loadSettings() {
   document.getElementById('set-expiry-days').value = settings.expiryDays||30;
   document.getElementById('set-vat').value = settings.vat||'no';
 }
-
 function saveSettings() {
+  settings.storeCode = document.getElementById('set-store-code').value;
   settings.storeName = document.getElementById('set-store-name').value;
   settings.storeAddr = document.getElementById('set-store-addr').value;
   settings.storePhone = document.getElementById('set-store-phone').value;
@@ -383,19 +523,21 @@ function saveSettings() {
   settings.vat = document.getElementById('set-vat').value;
   save(); updateHeaderSubtitle(); toast('บันทึกแล้ว ✓');
 }
-
 function updateHeaderSubtitle() {
   const el = document.getElementById('header-subtitle');
   if (!el) return;
-  const parts = [settings.storeName].filter(Boolean);
+  const parts = [settings.storeCode, settings.storeName].filter(Boolean);
   el.textContent = parts.join(' · ');
 }
-
+function openSetting() {
+  navigateFromMenu('more');
+}
 function clearAllData() {
   if (!confirm('⚠️ ล้างข้อมูลทั้งหมด?')) return;
   products=[];sales=[];purchases=[];debts=[];expenses=[];holdBills=[];billCounter=1;
   save(); toast('ล้างข้อมูลแล้ว','warning'); showPage('pos');
 }
+
 // ═══════════════════════════════════════════════
 // PRODUCT MANAGEMENT
 // ═══════════════════════════════════════════════
@@ -433,7 +575,7 @@ function saveProduct() {
   const barcode = document.getElementById('pm-barcode').value.trim();
   const name = document.getElementById('pm-name').value.trim();
   const price = +document.getElementById('pm-price').value || 0;
-  const category = document.getElementById('pm-category').value.trim();
+  const category = document.getElementById('pm-category').value.trim(); // auto-filled, but allow save as-is
   
   if (!productId) { toast('กรุณากรอกรหัสสินค้า','error'); return; }
   if (!barcode) { toast('กรุณากรอกบาร์โค้ด','error'); return; }
@@ -463,7 +605,6 @@ function saveProduct() {
   save(); closeModal('modal-product'); renderProducts(); renderPosProducts();
   toast(editingProductId?'แก้ไขแล้ว ✓':'เพิ่มสินค้าแล้ว ✓');
 }
-
 function deleteProduct(id) {
   if (!confirm('ลบสินค้านี้?')) return;
   products=products.filter(x=>x.id!==id);
@@ -488,7 +629,7 @@ function renderProducts() {
 
   const alerts=products.filter(p=>p.stock<=settings.lowStock||(p.expiry&&new Date(p.expiry)<=expWarn)).length;
   const nb=document.getElementById('nav-alert-badge');
-  if(nb){ nb.textContent=alerts; nb.style.display=alerts?'flex':'none'; }
+  nb.textContent=alerts; nb.style.display=alerts?'flex':'none';
 
   const c=document.getElementById('prod-list'); if(!c) return;
   if(!list.length){c.innerHTML='<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">ไม่พบสินค้า</div></div>';return;}
@@ -519,6 +660,7 @@ function renderProducts() {
     </div>`;
   }).join('');
 }
+
 // ═══════════════════════════════════════════════
 // POS
 // ═══════════════════════════════════════════════
@@ -557,7 +699,6 @@ function setCatFilter(cat) {
   updateCatChips();
   filterPosProducts();
 }
-
 function filterPosProducts() {
   renderPosProducts();
 }
@@ -581,7 +722,6 @@ function addToCart(product, qty) {
   renderCart();
   toast(`เพิ่ม ${product.name}`,'success');
 }
-
 function addFirstResult() {
   const q=document.getElementById('pos-search-input').value.toLowerCase();
   if(!q) return;
@@ -596,7 +736,6 @@ function addFirstResult() {
     toast('สินค้าหมด','error');
   }
 }
-
 function updateCartFab() {
   DB.set('cart', cart);
   const total=cart.reduce((s,c)=>s+c.qty,0);
@@ -634,7 +773,6 @@ function renderCart() {
   }
   calcCart();
 }
-
 function changeQty(i,d){
   const item=cart[i]; if(!item) return;
   if(d>0){
@@ -645,7 +783,6 @@ function changeQty(i,d){
   if(item.qty<=0)cart.splice(i,1);
   updateCartFab();renderCart();
 }
-
 function clearCart(){cart=[];updateCartFab();renderCart();}
 
 function calcCart() {
@@ -663,7 +800,6 @@ function calcCart() {
   if(el('cs-vat')) el('cs-vat').textContent=fmt(vat);
   if(el('cs-total')) el('cs-total').textContent=fmt(total);
 }
-
 function getCartTotal(){
   const sub=cart.reduce((s,c)=>s+c.qty*c.price,0);
   const discV=+(document.getElementById('cs-discount-val')?.value)||0;
@@ -674,6 +810,7 @@ function getCartTotal(){
   const total=after+(settings.vat==='exclude'?vat:0);
   return {subtotal:sub,discount:disc,vat,total};
 }
+
 // ═══════════════════════════════════════════════
 // PAYMENT
 // ═══════════════════════════════════════════════
@@ -687,7 +824,6 @@ function openPayment(){
   setPayType('เงินสด');
   openModal('modal-payment');
 }
-
 function setPayType(t){
   currentPayType=t;
   ['cash','transfer','card'].forEach(x=>{
@@ -697,7 +833,6 @@ function setPayType(t){
   document.getElementById('pay-cash-section').style.display=t==='เงินสด'?'block':'none';
   document.getElementById('pay-transfer-section').style.display=t!=='เงินสด'?'block':'none';
 }
-
 function keyPad(k){
   const{total}=getCartTotal();
   if(k==='C') payReceived='';
@@ -709,7 +844,6 @@ function keyPad(k){
   const change=v-total;
   document.getElementById('pay-change-display').textContent=fmt(Math.max(0,change));
 }
-
 function quickCash(amount){
   const{total}=getCartTotal();
   const current=+payReceived||0;
@@ -718,7 +852,6 @@ function quickCash(amount){
   const change=(+payReceived||0)-total;
   document.getElementById('pay-change-display').textContent=fmt(Math.max(0,change));
 }
-
 function confirmPayment(){
   const{subtotal,discount,vat,total}=getCartTotal();
   let received=total,change=0;
@@ -748,7 +881,6 @@ function confirmPayment(){
   closeModal('modal-payment'); closeModal('cart-sheet');
   showReceipt(sale);
 }
-
 function showReceipt(sale){
   document.getElementById('receipt-content').innerHTML=`<div class="receipt">
     <div class="receipt-header">
@@ -773,16 +905,13 @@ function showReceipt(sale){
   </div>`;
   openModal('modal-receipt');
 }
-
 function printReceipt(){window.print();}
-
 function newBill(){
   closeModal('modal-receipt'); cart=[]; updateCartFab();
   document.getElementById('cs-discount-val').value=0;
   renderCart(); renderPosProducts();
   document.getElementById('pos-bill-no').textContent='บิล #B'+String(billCounter).padStart(5,'0');
 }
-
 function addDebtSale(){
   if(!cart.length){toast('ยังไม่มีสินค้า','warning');return;}
   creditSaleMode = true;
@@ -797,7 +926,6 @@ function addDebtSale(){
   document.getElementById('dm-note').value = cart.map(c=>c.name).join(', ');
   openModal('modal-debt');
 }
-
 function finalizeCreditSale(name,phone,note){
   const{total}=getCartTotal();
   const billNo='B'+String(billCounter).padStart(5,'0'); billCounter++;
@@ -812,7 +940,6 @@ function finalizeCreditSale(name,phone,note){
   save(); cart=[]; updateCartFab(); closeModal('cart-sheet'); renderPosProducts();
   toast(`ขายเชื่อ ${name} ${fmt(total)}`,'info');
 }
-
 function holdCurrentCart(){
   if(!cart.length){toast('ไม่มีสินค้าในรายการ','warning');return;}
   const n=`บิล ${holdBills.length+1}`;
@@ -820,9 +947,7 @@ function holdCurrentCart(){
   save(); cart=[]; updateCartFab(); closeModal('cart-sheet'); renderPosProducts();
   toast(`พักบิล "${n}" แล้ว`);
 }
-
 function openHoldBillsPage(){
-  if (currentPage !== 'pos') { location.href = 'pos.html#hold'; return; }
   const list=document.getElementById('hold-bills-list');
   list.innerHTML=holdBills.length?holdBills.map((b,i)=>`
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:8px">
@@ -835,15 +960,14 @@ function openHoldBillsPage(){
     </div>`).join('') : '<div class="empty-state"><div class="empty-text">ไม่มีบิลพัก</div></div>';
   openModal('modal-hold');
 }
-
 function resumeHold(i){
   if(cart.length&&!confirm('แทนที่รายการปัจจุบัน?')) return;
   cart=[...holdBills[i].cart]; holdBills.splice(i,1);
   save(); closeModal('modal-hold'); updateCartFab();
   openCartSheet(); renderCart(); toast('เรียกบิลแล้ว');
 }
-
 function deleteHold(i){holdBills.splice(i,1);save();openHoldBillsPage();}
+
 // ═══════════════════════════════════════════════
 // PURCHASE
 // ═══════════════════════════════════════════════
@@ -853,7 +977,6 @@ function openPurchaseModal(){
   document.getElementById('pur-items-list').innerHTML='';
   addPurItem(); openModal('modal-purchase');
 }
-
 function addPurItem(){
   const c=document.getElementById('pur-items-list');
   const id=uid();
@@ -870,7 +993,6 @@ function addPurItem(){
     </div>`;
   c.appendChild(d);
 }
-
 function savePurchase(){
   const date=document.getElementById('pur-date').value;
   const supplier=document.getElementById('pur-supplier').value;
@@ -890,7 +1012,6 @@ function savePurchase(){
   save(); closeModal('modal-purchase'); renderPurchases(); renderPosProducts();
   toast('บันทึกการสั่งซื้อแล้ว');
 }
-
 function renderPurchases(){
   const from=document.getElementById('pur-date-from')?.value;
   const to=document.getElementById('pur-date-to')?.value;
@@ -923,7 +1044,6 @@ function renderAdjList(){
       <input type="number" class="adj-input" id="adj-${p.id}" placeholder="ใหม่" inputmode="numeric" oninput="if(this.value==='')delete adjChanges['${p.id}'];else adjChanges['${p.id}']=+this.value">
     </div>`).join('');
 }
-
 function saveStockAdjust(){
   let count=0;
   Object.entries(adjChanges).forEach(([id,val])=>{
@@ -934,6 +1054,7 @@ function saveStockAdjust(){
   adjChanges={}; save(); closeModal('modal-stock-adjust'); renderPosProducts();
   toast(`ปรับสต๊อก ${count} รายการแล้ว`);
 }
+
 // ═══════════════════════════════════════════════
 // DEBT
 // ═══════════════════════════════════════════════
@@ -958,7 +1079,6 @@ function openDebtModal(id=null){
   }
   openModal('modal-debt');
 }
-
 function saveDebt(){
   const name=document.getElementById('dm-name').value.trim();
   if(!name){toast('กรุณากรอกชื่อ','error');return;}
@@ -987,7 +1107,6 @@ function saveDebt(){
   else debts.push(data);
   save(); closeModal('modal-debt'); renderDebts(); toast('บันทึกแล้ว');
 }
-
 function openPayDebt(id){
   currentDebtId=id;
   const d=debts.find(x=>x.id===id);
@@ -996,7 +1115,6 @@ function openPayDebt(id){
   document.getElementById('pd-pay-amt').value=d.amount-d.paid;
   openModal('modal-pay-debt');
 }
-
 function confirmPayDebt(){
   const d=debts.find(x=>x.id===currentDebtId);
   const amt=+document.getElementById('pd-pay-amt').value||0;
@@ -1005,12 +1123,10 @@ function confirmPayDebt(){
   if(d.paid>=d.amount) d.status='ชำระแล้ว';
   save(); closeModal('modal-pay-debt'); renderDebts(); toast(`รับชำระ ${fmt(amt)}`);
 }
-
 function deleteDebt(id){
   if(!confirm('ลบรายการนี้?')) return;
   debts=debts.filter(x=>x.id!==id); save(); renderDebts(); toast('ลบแล้ว','warning');
 }
-
 function renderDebts(){
   const outstanding=debts.filter(d=>d.status==='ค้าง').reduce((s,d)=>s+d.amount-d.paid,0);
   document.getElementById('debt-outstanding').textContent=fmt(outstanding);
@@ -1046,14 +1162,12 @@ function renderDebts(){
 // EXPENSE
 // ═══════════════════════════════════════════════
 function openExpense(){
-  if (currentPage !== 'more') { location.href = 'more.html#expense'; return; }
   document.getElementById('exp-name').value='';
   document.getElementById('exp-amount').value='';
   document.getElementById('exp-date').value=today();
   document.getElementById('exp-note').value='';
   openModal('modal-expense');
 }
-
 function saveExpense(){
   const name=document.getElementById('exp-name').value.trim();
   const amount=+document.getElementById('exp-amount').value||0;
@@ -1061,13 +1175,13 @@ function saveExpense(){
   expenses.push({id:uid(),name,amount,date:document.getElementById('exp-date').value,note:document.getElementById('exp-note').value,createdAt:Date.now()});
   save(); closeModal('modal-expense'); toast('บันทึกรายจ่ายแล้ว');
 }
+
 // ═══════════════════════════════════════════════
 // REPORTS
 // ═══════════════════════════════════════════════
 function switchReportTab(tab){
   ['sales','stock','expense'].forEach(t=>{
-    const el = document.getElementById('rtab-'+t);
-    if(el) el.style.display = t===tab ? 'block' : 'none';
+    document.getElementById('rtab-'+t).style.display=t===tab?'block':'none';
   });
   document.querySelectorAll('#report-tabs .tab-btn').forEach((b,i)=>{
     b.classList.toggle('active',['sales','stock','expense'][i]===tab);
@@ -1092,7 +1206,6 @@ function setDateRange(range,which){
     renderPurchaseReport();
   }
 }
-
 function filterByDate(list,fromId,toId,df='date'){
   const from=document.getElementById(fromId)?.value;
   const to=document.getElementById(toId)?.value;
@@ -1174,14 +1287,12 @@ function setCompareRange(mode){
   }
   renderCompareReport();
 }
-
 function periodSummary(from,to){
   const list=sales.filter(s=>{const d=s.date.slice(0,10); return (!from||d>=from)&&(!to||d<=to);});
   const total=list.reduce((s,x)=>s+x.total,0);
   const profit=list.reduce((s,x)=>s+x.items.reduce((ss,i)=>ss+(i.subtotal-(i.cost||0)*i.qty),0),0);
   return {list,total,profit,bills:list.length,avg:list.length?total/list.length:0};
 }
-
 function renderCompareReport(){
   const af=document.getElementById('cmp-a-from')?.value, at=document.getElementById('cmp-a-to')?.value;
   const bf=document.getElementById('cmp-b-from')?.value, bt=document.getElementById('cmp-b-to')?.value;
@@ -1209,7 +1320,6 @@ function renderCompareReport(){
     options:{responsive:true,plugins:{legend:{labels:{color:'#94A3B8',boxWidth:12,font:{size:10}}}},scales:{x:{ticks:{color:'#64748B'}},y:{ticks:{color:'#64748B'}}}}
   });
 }
-
 function exportCompareExcel(){
   const af=document.getElementById('cmp-a-from')?.value, at=document.getElementById('cmp-a-to')?.value;
   const bf=document.getElementById('cmp-b-from')?.value, bt=document.getElementById('cmp-b-to')?.value;
@@ -1296,6 +1406,7 @@ function renderPurchaseReport(){
       <div style="font-family:var(--mono);font-size:13px;font-weight:600">${fmt(r.total)}</div>
     </div>`).join('')||'<div class="empty-state" style="padding:20px"><div class="empty-text">ไม่มีข้อมูล</div></div>';
 }
+
 // ═══════════════════════════════════════════════
 // EXCEL EXPORT & IMPORT
 // ═══════════════════════════════════════════════
@@ -1305,7 +1416,6 @@ function exportXLSX(data,sheet,file){
   XLSX.utils.book_append_sheet(wb,ws,sheet);
   XLSX.writeFile(wb,file);
 }
-
 function exportXLSXMulti(sheets,file){
   const wb=XLSX.utils.book_new();
   sheets.forEach(s=>{
@@ -1314,7 +1424,6 @@ function exportXLSXMulti(sheets,file){
   });
   XLSX.writeFile(wb,file);
 }
-
 function exportProductsExcel(){
   const rows=[['รหัสสินค้า','บาร์โค้ด','ชื่อสินค้า','หมวดหมู่','ราคาขาย','ต้นทุน','สต๊อก','วันหมดอายุ']];
   products.forEach(p=>{
@@ -1322,7 +1431,6 @@ function exportProductsExcel(){
   });
   exportXLSX(rows,'สินค้า','products.xlsx'); toast('Export แล้ว');
 }
-
 function exportSalesExcel(){
   const list=filterByDate(sales,'rep-sale-from','rep-sale-to');
   const rows=[['วันที่','บิล','สินค้า','ยอดรวม','ชำระ']];
@@ -1344,7 +1452,6 @@ function exportSalesExcel(){
   ],'sales.xlsx');
   toast('Export แล้ว');
 }
-
 function exportStockExcel(){
   const rows=[['รหัสสินค้า','บาร์โค้ด','ชื่อสินค้า','หมวดหมู่','สต๊อก','ต้นทุน','มูลค่า']];
   products.forEach(p=>{
@@ -1352,14 +1459,12 @@ function exportStockExcel(){
   });
   exportXLSX(rows,'สต๊อก','stock.xlsx'); toast('Export แล้ว');
 }
-
 function exportPurchaseExcel(){
   const list=filterByDate(purchases,'pur-date-from','pur-date-to');
   const rows=[['วันที่','ผู้จำหน่าย','สินค้า','จำนวน','ราคา/หน่วย','รวม']];
   list.forEach(p=>p.items.forEach(i=>rows.push([p.date,p.supplier||'',i.name,i.qty,i.price,i.total])));
   exportXLSX(rows,'สั่งซื้อ','purchase.xlsx'); toast('Export แล้ว');
 }
-
 function exportPurchaseRptExcel(){
   const purList=filterByDate(purchases,'rep-pur-from','rep-pur-to');
   const expList=filterByDate(expenses,'rep-pur-from','rep-pur-to');
@@ -1448,7 +1553,8 @@ function importExcel(event) {
   reader.readAsArrayBuffer(file);
 }
 
-// ── MASTER UPDATE ──
+// ── MASTER UPDATE: อัพเดทชื่อ+หมวดหมู่ จากไฟล์ Excel เท่านั้น ──
+// (ไม่แตะราคา/ทุน/สต๊อก ต่างจาก importExcel ที่อัปเดตทุกฟิลด์)
 function importMasterUpdate(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -1503,7 +1609,6 @@ function exportBackupJSON(){
   URL.revokeObjectURL(url);
   toast('สำรองข้อมูลแล้ว ✓');
 }
-
 function importBackupJSON(event){
   const file=event.target.files[0]; if(!file) return;
   const reader=new FileReader();
@@ -1526,7 +1631,7 @@ function importBackupJSON(event){
   reader.readAsText(file);
 }
 
-// ── SCAN BARCODE ─────────────────────────────────
+// ── SCAN BARCODE FROM PHOTO (ถ่าย/เลือกรูป) ─────
 async function scanBarcodeFromPhoto(event) {
   const file = event.target.files[0];
   event.target.value = '';
@@ -1553,6 +1658,7 @@ async function scanBarcodeFromPhoto(event) {
   }
 }
 
+// ── SCAN BARCODE ─────────────────────────────────
 async function scanBarcode() {
   try {
     if (!('BarcodeDetector' in window)) {
@@ -1595,6 +1701,7 @@ async function scanBarcode() {
   }
 }
 
+// ── SCAN BARCODE → ฟอร์มเพิ่ม/แก้ไขสินค้า ─────────
 async function scanBarcodeFromPhotoToProductForm(event) {
   const file = event.target.files[0];
   event.target.value = '';
@@ -1686,22 +1793,20 @@ window.addEventListener('DOMContentLoaded',()=>{
   seedDemoData();
   updateHeaderSubtitle();
   setActiveNav(currentPage);
-  
+  runPageInit(currentPage);
+
   const expWarn=new Date(); expWarn.setDate(expWarn.getDate()+settings.expiryDays);
   const alerts=products.filter(p=>p.stock<=settings.lowStock||(p.expiry&&new Date(p.expiry)<=expWarn));
   const nb=document.getElementById('nav-alert-badge');
   if(nb){ nb.textContent=alerts.length; nb.style.display=alerts.length?'flex':'none'; }
   if(alerts.length) setTimeout(()=>toast(`⚠️ ${alerts.length} รายการต้องตรวจสอบ`,'warning'),800);
-  
-  renderMapping();
-  updateCategorySelects();
-  updateCatChips();
-  renderPosProducts();
-  document.getElementById('pos-bill-no').textContent='บิล #B'+String(billCounter).padStart(5,'0');
 });
 
 function toggleMappingCard(){
   const body=document.getElementById('mapping-card-body');
+  const chevron=document.getElementById('mapping-card-chevron');
   if(!body) return;
-  body.style.display = body.style.display === 'none' ? 'block' : 'none';
+  const isOpen=body.style.display!=='none';
+  body.style.display=isOpen?'none':'block';
+  if(chevron){ chevron.style.display='inline-block'; chevron.style.transform=isOpen?'':'rotate(180deg)'; }
 }
