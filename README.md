@@ -1,6 +1,6 @@
 # 🛒 POS-MOBILE
 
-### ระบบขายหน้าร้านมือถือ สำหรับร้าน 7-Eleven สาขา 18517
+### ระบบขายหน้าร้านมือถือ
 
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)
@@ -52,9 +52,7 @@
 |:---|:---|
 | [SheetJS (xlsx.js)](https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js) | นำเข้า/ส่งออกไฟล์ Excel |
 | [Chart.js](https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js) | กราฟในหน้ารายงาน |
-
 ---
 
-<div align="center">
-<sub>Made for mobile-first point-of-sale · ร้าน 7-Eleven สาขา 18517 📱</sub>
-</div>
+
+ made in Thailand ® 2024

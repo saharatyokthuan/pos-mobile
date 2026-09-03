@@ -83,6 +83,9 @@
         <select id="prod-cat-filter" onchange="renderProducts()">
           <option value="">ทุกหมวด</option>
         </select>
+        <select id="prod-type-filter" onchange="renderProducts()">
+          <option value="">ทุกประเภท</option>
+        </select>
         <select id="prod-stock-filter" onchange="renderProducts()">
           <option value="">สต๊อกทั้งหมด</option>
           <option value="available">มีสต๊อก (ไม่หมด)</option>
@@ -474,6 +477,9 @@
     <div class="form-group"><label>หมวดหมู่ (Auto-fill ตามรหัส)</label>
       <input type="text" id="pm-category" placeholder="จะถูกเติมอัตโนมัติตามรหัสสินค้า" readonly>
       <div style="font-size:11px;color:var(--text-muted);margin-top:4px">💡 หมวดหมู่จะถูกเติมอัตโนมัติเมื่อกรอกรหัสสินค้า ตามที่ตั้งค่าในหน้า "เพิ่มเติม"</div>
+    </div>
+    <div class="form-group"><label>ประเภท</label>
+      <select id="pm-type"></select>
     </div>
     <div class="form-group"><label>ราคาขาย (บาท) *</label><input type="number" id="pm-price" inputmode="decimal" step="0.01" placeholder="0.00"></div>
     <div class="form-group"><label>ราคาทุน (บาท)</label><input type="number" id="pm-cost" inputmode="decimal" step="0.01"></div>

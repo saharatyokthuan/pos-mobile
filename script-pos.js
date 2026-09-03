@@ -112,6 +112,30 @@ const OFFICIAL_CATEGORY_MAPPING = [
   { prefix:'99', name:'ลังเบรค', locked:true },
 ];
 
+// ── ประเภทสินค้า (Type) ──────────────────────────
+// รายการประเภทแบบเลือกเอง ไม่ผูกกับรหัสสินค้า/prefix (ต่างจากหมวดหมู่ด้านบน)
+const PRODUCT_TYPES = [
+  'ขนมและชอคโกแลต',
+  'อาหารพร้อมทาน',
+  'เครื่องดื่ม',
+  'นมและโยเกิร์ต',
+  'เบเกอรี่และขนมหวาน',
+  'ของใช้ส่วนตัว',
+  'อาหารพร้อมปรุง',
+  'ผักและผลไม้',
+  'ยาและอุปกรณ์การแพทย์',
+  'True wallet',
+  'True move',
+];
+function populateProductTypeSelect(selectId, placeholder) {
+  const el = document.getElementById(selectId);
+  if (!el) return;
+  const current = el.value;
+  el.innerHTML = `<option value="">${esc(placeholder || '-- เลือกประเภท --')}</option>` +
+    PRODUCT_TYPES.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  if (current) el.value = current;
+}
+
 let categoryMapping = DB.get('categoryMapping', null);
 if (!categoryMapping) {
   categoryMapping = OFFICIAL_CATEGORY_MAPPING.map(m => ({...m}));
@@ -545,12 +569,14 @@ function openProductModal(id=null) {
   editingProductId = id;
   document.getElementById('prod-modal-title').textContent = id ? '✏️ แก้ไขสินค้า' : '+ เพิ่มสินค้า';
   updateCategorySelects();
+  populateProductTypeSelect('pm-type');
   if (id) {
     const p = products.find(x=>x.id===id); if(!p) return;
     document.getElementById('pm-product_id').value = p.product_id||'';
     document.getElementById('pm-barcode').value = p.barcode||'';
     document.getElementById('pm-name').value = p.name||'';
     document.getElementById('pm-category').value = p.category||'';
+    document.getElementById('pm-type').value = p.type||'';
     document.getElementById('pm-price').value = p.price||0;
     document.getElementById('pm-cost').value = p.cost||0;
     document.getElementById('pm-stock').value = p.stock||0;
@@ -561,6 +587,7 @@ function openProductModal(id=null) {
     document.getElementById('pm-barcode').value='';
     document.getElementById('pm-name').value='';
     document.getElementById('pm-category').value='';
+    document.getElementById('pm-type').value='';
     document.getElementById('pm-price').value='';
     document.getElementById('pm-cost').value='';
     document.getElementById('pm-stock').value=0;
@@ -576,6 +603,7 @@ function saveProduct() {
   const name = document.getElementById('pm-name').value.trim();
   const price = +document.getElementById('pm-price').value || 0;
   const category = document.getElementById('pm-category').value.trim(); // auto-filled, but allow save as-is
+  const type = document.getElementById('pm-type').value.trim();
   
   if (!productId) { toast('กรุณากรอกรหัสสินค้า','error'); return; }
   if (!barcode) { toast('กรุณากรอกบาร์โค้ด','error'); return; }
@@ -590,6 +618,7 @@ function saveProduct() {
     barcode: barcode,
     name: name,
     category: category || getCategoryFromProductId(productId),
+    type: type,
     price: price,
     cost: +document.getElementById('pm-cost').value || 0,
     stock: +document.getElementById('pm-stock').value || 0,
@@ -614,12 +643,16 @@ function deleteProduct(id) {
 function renderProducts() {
   const q=(document.getElementById('prod-search')?.value||'').toLowerCase();
   const cat=document.getElementById('prod-cat-filter')?.value||'';
+  const typ=document.getElementById('prod-type-filter')?.value||'';
   const sf=document.getElementById('prod-stock-filter')?.value||'';
   const expWarn=new Date(); expWarn.setDate(expWarn.getDate()+settings.expiryDays);
+  populateProductTypeSelect('prod-type-filter', 'ทุกประเภท');
+  document.getElementById('prod-type-filter').value = typ;
 
   let list=products.filter(p=>{
     if(q&&!p.name.toLowerCase().includes(q)&&!(p.product_id||'').includes(q)&&!(p.barcode||'').includes(q)) return false;
     if(cat&&p.category!==cat) return false;
+    if(typ&&p.type!==typ) return false;
     if(sf==='low'&&(p.stock<=0||p.stock>settings.lowStock)) return false;
     if(sf==='out'&&p.stock>0) return false;
     if(sf==='available'&&p.stock<=0) return false;
@@ -646,7 +679,7 @@ function renderProducts() {
     return `<div class="prod-list-item">
       <div class="pli-info">
         <div class="pli-name">${esc(p.name)}</div>
-        <div class="pli-meta">รหัส: <span class="pli-barcode">${esc(p.product_id||'-')}</span> · Barcode: ${esc(p.barcode||'-')} · ${esc(p.category||'-')}</div>
+        <div class="pli-meta">รหัส: <span class="pli-barcode">${esc(p.product_id||'-')}</span> · Barcode: ${esc(p.barcode||'-')} · ${esc(p.category||'-')}${p.type?` · 🏷️ ${esc(p.type)}`:''}</div>
         <div class="pli-price">${fmt(p.price)}</div>
         ${expiryTxt}
       </div>
